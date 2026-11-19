@@ -1,0 +1,45 @@
+# Just the debug APK, with none of build.yml's tests, lint or release checks:
+# the quickest way to get an installable file from a fork. Run it from the
+# Actions tab (Run workflow), or it runs on every push to main.
+name: apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # 21 exactly: shellserver/build.sh refuses any other major.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v4
+
+      # The same SDK list as build.yml: the recorder is compiled against
+      # android-36 by shellserver/build.sh, the app against android-37.
+      - name: Install the SDK the app and the recorder need
+        run: |
+          sdkmanager --install "platforms;android-37.0" || sdkmanager --install "platforms;android-37"
+          sdkmanager --install "platforms;android-36" || sdkmanager --install "platforms;android-36.0"
+          sdkmanager --install "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: jemrec-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
